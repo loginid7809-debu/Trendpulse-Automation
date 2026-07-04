@@ -1,0 +1,141 @@
+name: TrendPulse Auto Content Pipeline
+
+on:
+  repository_dispatch:
+    types: [trigger-content]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+
+env:
+  YOUTUBE_CLIENT_ID:     ${{ secrets.YOUTUBE_CLIENT_ID }}
+  YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+  YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+  GEMINI_API_KEY:        ${{ secrets.GEMINI_API_KEY }}
+  PEXELS_API_KEY:        ${{ secrets.PEXELS_API_KEY }}
+  NEWS_API_KEY:          ${{ secrets.NEWS_API_KEY }}
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            ffmpeg \
+            fonts-liberation \
+            imagemagick \
+            --no-install-recommends
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download fonts
+        run: |
+          mkdir -p assets/fonts
+          wget -q -O assets/fonts/Bold.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf" \
+            || echo "Bold font failed"
+          wget -q -O assets/fonts/ExtraBold.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-ExtraBold.ttf" \
+            || echo "ExtraBold font failed"
+          wget -q -O assets/fonts/Regular.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Regular.ttf" \
+            || echo "Regular font failed"
+
+      - name: Create watermark
+        run: |
+          python3 -c "
+          from PIL import Image, ImageDraw, ImageFont
+          import os
+          os.makedirs('assets', exist_ok=True)
+          img = Image.new('RGBA', (280, 60), (0, 0, 0, 0))
+          draw = ImageDraw.Draw(img)
+          fp = 'assets/fonts/Bold.ttf'
+          try:
+              font = ImageFont.truetype(fp, 24) if os.path.exists(fp) else ImageFont.load_default()
+          except Exception:
+              font = ImageFont.load_default()
+          draw.text((10, 15), 'TrendPulse Global', font=font, fill=(255,255,255,180))
+          img.save('assets/watermark.png')
+          print('Watermark created.')
+          "
+
+      - name: Ensure data directory and history file
+        run: |
+          mkdir -p data
+          if [ ! -f data/upload_history.json ]; then
+            echo '{"uploads":[],"topics":[]}' > data/upload_history.json
+          fi
+
+      - name: Verify all source files exist
+        run: |
+          echo "Checking source files..."
+          files=(
+            "src/__init__.py"
+            "src/utils/__init__.py"
+            "src/utils/config.py"
+            "src/utils/logger.py"
+            "src/utils/history_manager.py"
+            "src/trends/__init__.py"
+            "src/trends/google_trends.py"
+            "src/trends/youtube_trends.py"
+            "src/trends/news_trends.py"
+            "src/trends/trend_aggregator.py"
+            "src/content/__init__.py"
+            "src/content/script_generator.py"
+            "src/content/voice_generator.py"
+            "src/content/image_fetcher.py"
+            "src/content/music_manager.py"
+            "src/content/thumbnail_generator.py"
+            "src/video/__init__.py"
+            "src/video/video_assembler.py"
+            "src/upload/__init__.py"
+            "src/upload/youtube_uploader.py"
+            "main.py"
+          )
+          all_ok=true
+          for f in "${files[@]}"; do
+            if [ -f "$f" ]; then
+              echo "  OK: $f"
+            else
+              echo "  MISSING: $f"
+              all_ok=false
+            fi
+          done
+          if [ "$all_ok" = false ]; then
+            echo "ERROR: Some files are missing!"
+            exit 1
+          fi
+          echo "All files present."
+
+      - name: Run pipeline
+        run: python main.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Save upload history
+        if: always()
+        run: |
+          git config user.email "trendpulse-bot@github.com"
+          git config user.name "TrendPulse Bot"
+          git add data/upload_history.json || true
+          git diff --staged --quiet || \
+            git commit -m "chore: update history [skip ci]" || true
+          git push || true
