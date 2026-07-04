@@ -76,6 +76,16 @@ class Config:
         "https://cdn.pixabay.com/download/audio/2021/08/09/audio_88447e769a.mp3",
     ]
 
+    # Gemini models to try in order
+    GEMINI_MODELS = [
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro-latest',
+        'gemini-1.5-pro',
+    ]
+
     @classmethod
     def random_voice(cls, language='en'):
         pool = cls.VOICES_HI if language == 'hi' else cls.VOICES_EN
