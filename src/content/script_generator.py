@@ -20,14 +20,15 @@ class ScriptGenerator:
         genai.configure(api_key=Config.GEMINI_API_KEY)
         self.model = self._get_working_model()
 
-    def _get_working_model(self):
-        """Try each model name until one works."""
-        for model_name in self.MODELS:
+        def _get_working_model(self):
+        """Try each model name from config until one works."""
+        from src.utils.config import Config
+
+        for model_name in Config.GEMINI_MODELS:
             try:
                 m = genai.GenerativeModel(model_name)
-                # Quick test call
                 test = m.generate_content(
-                    "Say OK",
+                    "Reply with just: OK",
                     generation_config=genai.types.GenerationConfig(
                         max_output_tokens=5,
                         temperature=0.1,
@@ -36,10 +37,10 @@ class ScriptGenerator:
                 log.info(f"Gemini model working: {model_name}")
                 return m
             except Exception as e:
-                log.warning(f"Model {model_name} failed: {e}")
+                log.warning(f"Model {model_name} unavailable: {e}")
                 continue
 
-        log.warning("No Gemini model available - will use fallback scripts")
+        log.error("No Gemini model available - using fallback only")
         return None
 
     def generate(self, topic_data):
