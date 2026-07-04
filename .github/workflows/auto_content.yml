@@ -1,11 +1,11 @@
-name: TrendPulse — Auto Content Pipeline
+name: TrendPulse Auto Content Pipeline
 
 on:
   repository_dispatch:
-    types: [trigger-content]   # fired by Google Apps Script
-  workflow_dispatch:            # manual trigger from GitHub UI
+    types: [trigger-content]
+  workflow_dispatch:
   schedule:
-    - cron: '0 */3 * * *'     # safety fallback every 3 hours
+    - cron: '0 * * * *'
 
 env:
   YOUTUBE_CLIENT_ID:     ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -21,70 +21,88 @@ jobs:
     timeout-minutes: 28
 
     steps:
-      # 1. Checkout
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. Python
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
 
-      # 3. System packages
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg \
-            fonts-liberation fonts-noto imagemagick
+          sudo apt-get install -y \
+            ffmpeg \
+            fonts-liberation \
+            imagemagick \
+            --no-install-recommends
 
-      # 4. Python packages
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 5. Download fonts
-      - name: Download Poppins fonts
+      - name: Download fonts
         run: |
           mkdir -p assets/fonts
-          BASE="https://github.com/google/fonts/raw/main/ofl/poppins"
-          wget -q -O assets/fonts/Bold.ttf      "$BASE/Poppins-Bold.ttf"
-          wget -q -O assets/fonts/Regular.ttf   "$BASE/Poppins-Regular.ttf"
-          wget -q -O assets/fonts/ExtraBold.ttf "$BASE/Poppins-ExtraBold.ttf"
+          wget -q -O assets/fonts/Bold.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Bold.ttf" \
+            || echo "Bold font download failed, will use system fonts"
+          wget -q -O assets/fonts/ExtraBold.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-ExtraBold.ttf" \
+            || echo "ExtraBold font download failed, will use system fonts"
+          wget -q -O assets/fonts/Regular.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Regular.ttf" \
+            || echo "Regular font download failed, will use system fonts"
 
-      # 6. Create watermark
-      - name: Create watermark image
+      - name: Create watermark
         run: |
-          python - <<'EOF'
+          python3 -c "
           from PIL import Image, ImageDraw, ImageFont
-          img  = Image.new('RGBA', (260, 55), (0, 0, 0, 0))
+          import os
+          os.makedirs('assets', exist_ok=True)
+          img = Image.new('RGBA', (280, 60), (0, 0, 0, 0))
           draw = ImageDraw.Draw(img)
+          font_path = 'assets/fonts/Bold.ttf'
           try:
-              font = ImageFont.truetype('assets/fonts/Bold.ttf', 22)
+              font = ImageFont.truetype(font_path, 24) if os.path.exists(font_path) else ImageFont.load_default()
           except Exception:
               font = ImageFont.load_default()
-          draw.text((10, 12), '⚡ TrendPulse Global',
-                    font=font, fill=(255, 255, 255, 160))
+          draw.text((10, 15), 'TrendPulse Global', font=font, fill=(255, 255, 255, 180))
           img.save('assets/watermark.png')
-          print("Watermark created.")
-          EOF
+          print('Watermark created successfully')
+          "
 
-      # 7. Run pipeline
-      - name: Run TrendPulse pipeline
-        run: python main.py
+      - name: Verify structure
+        run: |
+          echo "=== Project Structure ==="
+          find . -name "*.py" | grep -v __pycache__ | sort
+          echo "=== Checking __init__.py files ==="
+          for f in src/__init__.py src/utils/__init__.py src/trends/__init__.py src/content/__init__.py src/video/__init__.py src/upload/__init__.py; do
+            if [ -f "$f" ]; then
+              size=$(wc -c < "$f")
+              echo "$f: $size bytes"
+            else
+              echo "$f: MISSING - creating empty file"
+              touch "$f"
+            fi
+          done
+
+      - name: Run pipeline
+        run: |
+          python main.py
         env:
           PYTHONPATH: ${{ github.workspace }}
 
-      # 8. Save history back to repo
-      - name: Commit updated history
+      - name: Save history
+        if: always()
         run: |
-          git config user.email "action@github.com"
-          git config user.name  "TrendPulse Bot"
-          git add data/upload_history.json
-          git diff --staged --quiet || \
-            git commit -m "chore: update upload history [skip ci]"
-          git push || echo "Nothing new to push"
+          git config user.email "trendpulse-bot@github.com"
+          git config user.name "TrendPulse Bot"
+          git add data/upload_history.json || true
+          git diff --staged --quiet || git commit -m "chore: update history [skip ci]" || true
+          git push || true
