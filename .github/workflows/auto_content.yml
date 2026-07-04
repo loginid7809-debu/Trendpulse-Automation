@@ -41,6 +41,11 @@ jobs:
             imagemagick \
             --no-install-recommends
 
+      - name: Fix ImageMagick policy
+        run: |
+          sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' \
+            /etc/ImageMagick-6/policy.xml || true
+
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
@@ -54,10 +59,7 @@ jobs:
             || echo "Bold font failed"
           wget -q -O assets/fonts/ExtraBold.ttf \
             "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-ExtraBold.ttf" \
-            || echo "ExtraBold font failed"
-          wget -q -O assets/fonts/Regular.ttf \
-            "https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Regular.ttf" \
-            || echo "Regular font failed"
+            || echo "ExtraBold failed"
 
       - name: Create watermark
         run: |
@@ -65,65 +67,97 @@ jobs:
           from PIL import Image, ImageDraw, ImageFont
           import os
           os.makedirs('assets', exist_ok=True)
-          img = Image.new('RGBA', (280, 60), (0, 0, 0, 0))
+          img = Image.new('RGBA', (280, 60), (0,0,0,0))
           draw = ImageDraw.Draw(img)
           fp = 'assets/fonts/Bold.ttf'
           try:
               font = ImageFont.truetype(fp, 24) if os.path.exists(fp) else ImageFont.load_default()
           except Exception:
               font = ImageFont.load_default()
-          draw.text((10, 15), 'TrendPulse Global', font=font, fill=(255,255,255,180))
+          draw.text((10,15), 'TrendPulse Global', font=font, fill=(255,255,255,180))
           img.save('assets/watermark.png')
           print('Watermark created.')
           "
 
-      - name: Ensure data directory and history file
+      - name: Ensure data directory
         run: |
           mkdir -p data
           if [ ! -f data/upload_history.json ]; then
             echo '{"uploads":[],"topics":[]}' > data/upload_history.json
           fi
 
-      - name: Verify all source files exist
+      - name: Test edge-tts
         run: |
-          echo "Checking source files..."
+          python3 -c "
+          import subprocess, sys, os, tempfile
+          print('Testing edge-tts...')
+          with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+              f.write('Hello TrendPulse Global test.')
+              tmp = f.name
+          out = '/tmp/test_tts.mp3'
+          result = subprocess.run(
+              [sys.executable, '-m', 'edge_tts',
+               '--voice', 'en-US-JennyNeural',
+               '--file', tmp,
+               '--write-media', out],
+              capture_output=True, text=True, timeout=30
+          )
+          os.unlink(tmp)
+          if result.returncode == 0 and os.path.exists(out):
+              size = os.path.getsize(out)
+              print(f'edge-tts works! File size: {size} bytes')
+          else:
+              print(f'edge-tts failed: {result.stderr}')
+          "
+
+      - name: Test Gemini API
+        run: |
+          python3 -c "
+          import google.generativeai as genai
+          import os
+          key = os.environ.get('GEMINI_API_KEY','')
+          if not key:
+              print('ERROR: GEMINI_API_KEY not set!')
+          else:
+              genai.configure(api_key=key)
+              models_to_try = [
+                  'gemini-2.0-flash',
+                  'gemini-2.0-flash-lite',
+                  'gemini-1.5-flash-latest',
+                  'gemini-1.5-flash',
+                  'gemini-1.5-pro-latest',
+              ]
+              for m in models_to_try:
+                  try:
+                      model = genai.GenerativeModel(m)
+                      r = model.generate_content('Say OK', generation_config=genai.types.GenerationConfig(max_output_tokens=5))
+                      print(f'WORKS: {m} -> {r.text.strip()}')
+                      break
+                  except Exception as e:
+                      print(f'FAIL:  {m} -> {e}')
+          "
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Verify source files
+        run: |
           files=(
-            "src/__init__.py"
-            "src/utils/__init__.py"
-            "src/utils/config.py"
-            "src/utils/logger.py"
+            "src/__init__.py" "src/utils/__init__.py"
+            "src/utils/config.py" "src/utils/logger.py"
             "src/utils/history_manager.py"
-            "src/trends/__init__.py"
-            "src/trends/google_trends.py"
-            "src/trends/youtube_trends.py"
-            "src/trends/news_trends.py"
+            "src/trends/__init__.py" "src/trends/google_trends.py"
+            "src/trends/youtube_trends.py" "src/trends/news_trends.py"
             "src/trends/trend_aggregator.py"
-            "src/content/__init__.py"
-            "src/content/script_generator.py"
-            "src/content/voice_generator.py"
-            "src/content/image_fetcher.py"
-            "src/content/music_manager.py"
-            "src/content/thumbnail_generator.py"
-            "src/video/__init__.py"
-            "src/video/video_assembler.py"
-            "src/upload/__init__.py"
-            "src/upload/youtube_uploader.py"
+            "src/content/__init__.py" "src/content/script_generator.py"
+            "src/content/voice_generator.py" "src/content/image_fetcher.py"
+            "src/content/music_manager.py" "src/content/thumbnail_generator.py"
+            "src/video/__init__.py" "src/video/video_assembler.py"
+            "src/upload/__init__.py" "src/upload/youtube_uploader.py"
             "main.py"
           )
-          all_ok=true
           for f in "${files[@]}"; do
-            if [ -f "$f" ]; then
-              echo "  OK: $f"
-            else
-              echo "  MISSING: $f"
-              all_ok=false
-            fi
+            [ -f "$f" ] && echo "OK: $f" || { echo "MISSING: $f"; exit 1; }
           done
-          if [ "$all_ok" = false ]; then
-            echo "ERROR: Some files are missing!"
-            exit 1
-          fi
-          echo "All files present."
 
       - name: Run pipeline
         run: python main.py
