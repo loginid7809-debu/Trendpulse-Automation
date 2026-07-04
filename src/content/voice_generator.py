@@ -1,8 +1,8 @@
 import os
-import subprocess
 import sys
-import tempfile
 import asyncio
+import tempfile
+import subprocess
 import edge_tts
 from src.utils.config import Config
 from src.utils.logger import log
@@ -22,7 +22,6 @@ class VoiceGenerator:
 
         audio_files = []
 
-        # Intro hook
         hook = script_data.get('intro_hook', '')
         if hook:
             p = self._tts(hook, voice, 'intro_hook.mp3')
@@ -32,7 +31,6 @@ class VoiceGenerator:
                     'text': hook, 'is_intro': True,
                 })
 
-        # Scene narrations
         for i, scene in enumerate(scenes):
             text = scene.get('narration', '').strip()
             if not text:
@@ -46,7 +44,6 @@ class VoiceGenerator:
             else:
                 log.warning(f"  Audio {i+1}/{len(scenes)} FAILED")
 
-        # Outro
         outro = script_data.get('outro', '')
         if outro:
             p = self._tts(outro, voice, 'outro.mp3')
@@ -60,31 +57,22 @@ class VoiceGenerator:
         return audio_files
 
     def _tts(self, text, voice, filename):
-        """Generate TTS audio using multiple methods."""
         out_path = os.path.join(self.out, filename)
 
-        # Method 1: Subprocess (most reliable in CI)
         if self._tts_subprocess(text, voice, out_path):
             return out_path
 
-        # Method 2: New event loop
         if self._tts_new_loop(text, voice, out_path):
             return out_path
 
-        # Method 3: asyncio.run with nest_asyncio workaround
-        if self._tts_run(text, voice, out_path):
+        if self._tts_asyncio_run(text, voice, out_path):
             return out_path
 
-        log.debug(f"All TTS methods failed for: {filename}")
+        log.debug(f"All TTS methods failed: {filename}")
         return None
 
     def _tts_subprocess(self, text, voice, out_path):
-        """
-        Use edge-tts as a subprocess command.
-        Most reliable method in GitHub Actions.
-        """
         try:
-            # Write text to temp file to avoid shell escaping issues
             with tempfile.NamedTemporaryFile(
                 mode='w', suffix='.txt',
                 delete=False, encoding='utf-8'
@@ -96,7 +84,7 @@ class VoiceGenerator:
                 [
                     sys.executable, '-m', 'edge_tts',
                     '--voice', voice,
-                    '--file', tmp_text,
+                    '--file',  tmp_text,
                     '--write-media', out_path,
                 ],
                 capture_output=True,
@@ -104,14 +92,17 @@ class VoiceGenerator:
                 timeout=60,
             )
 
-            os.unlink(tmp_text)
+            try:
+                os.unlink(tmp_text)
+            except Exception:
+                pass
 
-            if (result.returncode == 0 and
-                    os.path.exists(out_path) and
-                    os.path.getsize(out_path) > 500):
+            if (result.returncode == 0
+                    and os.path.exists(out_path)
+                    and os.path.getsize(out_path) > 500):
                 return True
 
-            log.debug(f"Subprocess TTS stderr: {result.stderr[:200]}")
+            log.debug(f"subprocess TTS stderr: {result.stderr[:200]}")
 
         except subprocess.TimeoutExpired:
             log.debug("TTS subprocess timeout")
@@ -121,7 +112,6 @@ class VoiceGenerator:
         return False
 
     def _tts_new_loop(self, text, voice, out_path):
-        """Create a brand new event loop."""
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -133,8 +123,8 @@ class VoiceGenerator:
                 loop.close()
                 asyncio.set_event_loop(None)
 
-            if (os.path.exists(out_path) and
-                    os.path.getsize(out_path) > 500):
+            if (os.path.exists(out_path)
+                    and os.path.getsize(out_path) > 500):
                 return True
 
         except Exception as e:
@@ -142,17 +132,14 @@ class VoiceGenerator:
 
         return False
 
-    def _tts_run(self, text, voice, out_path):
-        """Standard asyncio.run method."""
+    def _tts_asyncio_run(self, text, voice, out_path):
         try:
             asyncio.run(self._run_tts(text, voice, out_path))
-            if (os.path.exists(out_path) and
-                    os.path.getsize(out_path) > 500):
+            if (os.path.exists(out_path)
+                    and os.path.getsize(out_path) > 500):
                 return True
-        except RuntimeError as e:
-            log.debug(f"asyncio.run TTS error: {e}")
         except Exception as e:
-            log.debug(f"TTS run error: {e}")
+            log.debug(f"asyncio.run TTS error: {e}")
 
         return False
 
