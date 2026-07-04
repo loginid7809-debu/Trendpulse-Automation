@@ -11,6 +11,7 @@ class Config:
     YOUTUBE_CLIENT_SECRET = os.environ.get('YOUTUBE_CLIENT_SECRET', '')
     YOUTUBE_REFRESH_TOKEN = os.environ.get('YOUTUBE_REFRESH_TOKEN', '')
     GEMINI_API_KEY        = os.environ.get('GEMINI_API_KEY',        '')
+    GROQ_API_KEY          = os.environ.get('GROQ_API_KEY',          '')
     PEXELS_API_KEY        = os.environ.get('PEXELS_API_KEY',        '')
     NEWS_API_KEY          = os.environ.get('NEWS_API_KEY',          '')
 
@@ -76,14 +77,21 @@ class Config:
         "https://cdn.pixabay.com/download/audio/2021/08/09/audio_88447e769a.mp3",
     ]
 
-    # Gemini models to try in order
+    # Gemini models to try
     GEMINI_MODELS = [
         'gemini-2.0-flash',
         'gemini-2.0-flash-lite',
         'gemini-1.5-flash-latest',
         'gemini-1.5-flash',
-        'gemini-1.5-pro-latest',
         'gemini-1.5-pro',
+    ]
+
+    # Groq models to try (free, fast)
+    GROQ_MODELS = [
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant',
+        'mixtral-8x7b-32768',
+        'gemma2-9b-it',
     ]
 
     @classmethod
