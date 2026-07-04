@@ -1,5 +1,4 @@
 import json
-import random
 import google.generativeai as genai
 from src.utils.config import Config
 from src.utils.logger import log
@@ -7,28 +6,16 @@ from src.utils.logger import log
 
 class ScriptGenerator:
 
-    # Try these models in order until one works
-    MODELS = [
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro-latest',
-        'gemini-pro',
-        'gemini-1.0-pro',
-    ]
-
     def __init__(self):
         genai.configure(api_key=Config.GEMINI_API_KEY)
         self.model = self._get_working_model()
 
-        def _get_working_model(self):
-        """Try each model name from config until one works."""
-        from src.utils.config import Config
-
+    def _get_working_model(self):
         for model_name in Config.GEMINI_MODELS:
             try:
                 m = genai.GenerativeModel(model_name)
-                test = m.generate_content(
-                    "Reply with just: OK",
+                m.generate_content(
+                    "Reply OK",
                     generation_config=genai.types.GenerationConfig(
                         max_output_tokens=5,
                         temperature=0.1,
@@ -39,7 +26,6 @@ class ScriptGenerator:
             except Exception as e:
                 log.warning(f"Model {model_name} unavailable: {e}")
                 continue
-
         log.error("No Gemini model available - using fallback only")
         return None
 
@@ -51,7 +37,6 @@ class ScriptGenerator:
         log.info(f"Generating [{content_type}|{language}]: '{topic[:60]}'")
 
         script = None
-
         if self.model:
             try:
                 if content_type == 'short':
@@ -77,12 +62,11 @@ class ScriptGenerator:
 
     def _long(self, topic, language):
         lang = 'Hindi' if language == 'hi' else 'English'
-        prompt = f"""You are a YouTube content creator for "TrendPulse Global".
+        prompt = f"""You are a YouTube content creator for TrendPulse Global.
 Write an ORIGINAL engaging video script about: "{topic}"
 Language: {lang}
 
-Return ONLY valid JSON starting with {{ and ending with }}.
-No markdown. No backticks. No explanation outside JSON.
+Return ONLY valid JSON. No markdown. No backticks. Start with {{ end with }}
 
 {{
   "title": "Engaging title with emoji max 90 chars",
@@ -106,12 +90,11 @@ Include exactly 8 scenes. Natural conversational tone."""
 
     def _short(self, topic, language):
         lang = 'Hindi' if language == 'hi' else 'English'
-        prompt = f"""You are a YouTube Shorts creator for "TrendPulse Global".
+        prompt = f"""You are a YouTube Shorts creator for TrendPulse Global.
 Create a 45 second Short script about: "{topic}"
 Language: {lang}
 
-Return ONLY valid JSON starting with {{ and ending with }}.
-No markdown. No backticks.
+Return ONLY valid JSON. No markdown. No backticks. Start with {{ end with }}
 
 {{
   "title": "Catchy title with emoji #Shorts max 90 chars",
@@ -150,13 +133,16 @@ Include exactly 5 scenes."""
     def _parse(self, text):
         if not text:
             return None
+
         text = text.strip()
+
         for fence in ['```json', '```JSON', '```']:
             if text.startswith(fence):
                 text = text[len(fence):]
                 break
         if text.endswith('```'):
             text = text[:-3]
+
         text = text.strip()
 
         try:
@@ -180,28 +166,26 @@ Include exactly 5 scenes."""
         return None
 
     def _fallback(self, topic, language, content_type):
-        is_short = content_type == 'short'
-        # Clean topic for use in narration
-        clean_topic = topic.replace(' - CNN', '').replace(
-            ' - BBC', '').replace(' - Reuters', '').strip()
-        clean_topic = clean_topic[:80]
+        is_short   = content_type == 'short'
+        clean      = topic.replace(' - CNN', '').replace(
+            ' - BBC', '').replace(' - Reuters', '').strip()[:80]
 
         if is_short:
             scenes = [
                 {
                     "narration": (
                         f"You will not believe what is happening "
-                        f"with {clean_topic} right now!"
+                        f"with {clean} right now!"
                     ),
-                    "visual_query": clean_topic[:40],
+                    "visual_query": clean[:40],
                     "duration_hint": 10,
                 },
                 {
                     "narration": (
-                        f"This is trending worldwide and millions "
-                        f"of people are talking about it today."
+                        "This is trending worldwide and millions "
+                        "of people are talking about it today."
                     ),
-                    "visual_query": f"{clean_topic[:30]} news",
+                    "visual_query": f"{clean[:30]} news",
                     "duration_hint": 12,
                 },
                 {
@@ -229,25 +213,26 @@ Include exactly 5 scenes."""
                     "duration_hint": 8,
                 },
             ]
-            title = f"🔥 {clean_topic[:55]} #Shorts"
+            title = f"🔥 {clean[:55]} #Shorts"
+
         else:
             scenes = [
                 {
                     "narration": (
                         f"Welcome to TrendPulse Global. Today we are "
-                        f"covering {clean_topic}, which is one of the "
+                        f"covering {clean}, which is one of the "
                         f"biggest stories trending right now."
                     ),
-                    "visual_query": clean_topic[:40],
+                    "visual_query": clean[:40],
                     "duration_hint": 18,
                 },
                 {
                     "narration": (
                         f"Here is everything you need to know about "
-                        f"{clean_topic} and why it matters to you "
-                        f"and millions of people worldwide."
+                        f"{clean} and why it matters to millions "
+                        f"of people worldwide."
                     ),
-                    "visual_query": f"{clean_topic[:30]} explained",
+                    "visual_query": f"{clean[:30]} explained",
                     "duration_hint": 22,
                 },
                 {
@@ -265,7 +250,7 @@ Include exactly 5 scenes."""
                         "are being discussed by experts and analysts "
                         "from around the globe."
                     ),
-                    "visual_query": "facts analysis global",
+                    "visual_query": "facts analysis global experts",
                     "duration_hint": 22,
                 },
                 {
@@ -283,7 +268,7 @@ Include exactly 5 scenes."""
                         "story that will affect how things unfold "
                         "over the coming weeks and months."
                     ),
-                    "visual_query": "key points takeaways",
+                    "visual_query": "key points takeaways infographic",
                     "duration_hint": 22,
                 },
                 {
@@ -305,26 +290,26 @@ Include exactly 5 scenes."""
                     "duration_hint": 18,
                 },
             ]
-            title = f"🔥 {clean_topic[:65]} — Full Story"
+            title = f"🔥 {clean[:65]} — Full Story"
 
         return {
             "title": title,
             "description": (
-                f"Full coverage of {clean_topic}.\n\n"
+                f"Full coverage of {clean}.\n\n"
                 f"TrendPulse Global covers the biggest trending "
                 f"topics every hour.\n\n"
                 f"#trending #TrendPulseGlobal #viral #news #facts"
             ),
             "tags": [
-                clean_topic[:40], "trending", "viral",
+                clean[:40], "trending", "viral",
                 "TrendPulse", "news", "facts", "2024"
             ],
-            "category": "entertainment",
-            "thumbnail_text": clean_topic[:20],
-            "scenes": scenes,
+            "category":       "entertainment",
+            "thumbnail_text": clean[:20],
+            "scenes":         scenes,
             "intro_hook": (
                 f"Here is everything you need to know about "
-                f"{clean_topic} right now!"
+                f"{clean} right now!"
             ),
             "outro": (
                 "Subscribe to TrendPulse Global for hourly "
