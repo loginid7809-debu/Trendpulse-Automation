@@ -10,16 +10,21 @@ from src.utils.logger          import log
 class TrendAggregator:
 
     FALLBACKS = [
-        "Amazing Science Discoveries That Shocked The World",
-        "Top Technology Breakthroughs Happening Right Now",
-        "Mind-Blowing Space Discoveries You Never Heard Of",
-        "Incredible Historical Events That Changed Everything",
-        "Future Technology That Will Blow Your Mind",
+        "Amazing Science Discoveries Changing The World",
+        "Top Technology Innovations Right Now",
+        "Mind Blowing Space Discoveries Explained",
+        "Incredible Historical Events You Never Knew",
+        "Future Technology Coming In Next 5 Years",
         "Psychology Facts About Human Behavior",
-        "Mysterious Unsolved Mysteries Around The World",
-        "Artificial Intelligence Changing Our Daily Lives",
+        "Unsolved Mysteries That Baffle Scientists",
+        "Artificial Intelligence Revolution 2024",
         "Wildlife Facts That Will Amaze You",
-        "Extreme Weather Events Breaking Records",
+        "Climate Change Solutions Being Tested Now",
+        "Hidden Secrets Of Ancient Civilizations",
+        "Extreme Sports That Push Human Limits",
+        "Medical Breakthroughs Saving Lives Today",
+        "Ocean Mysteries Scientists Just Discovered",
+        "How Billionaires Think Differently",
     ]
 
     def __init__(self):
@@ -43,23 +48,29 @@ class TrendAggregator:
 
         if not raw:
             log.warning("All sources failed, using fallbacks")
-            raw = [{'topic': t, 'source': 'fallback', 'score': 55}
-                   for t in self.FALLBACKS]
+            raw = [
+                {'topic': t, 'source': 'fallback', 'score': 55}
+                for t in self.FALLBACKS
+            ]
 
         unique = self._dedup(raw)
-        fresh  = [t for t in unique
-                  if not self.history.is_duplicate(t['topic'])]
+        fresh  = [
+            t for t in unique
+            if not self.history.is_duplicate(t['topic'])
+        ]
 
         if not fresh:
             log.warning("All topics covered recently, reusing")
             fresh = unique[:5]
 
-        top5     = sorted(fresh,
-                          key=lambda x: x.get('score', 50),
-                          reverse=True)[:5]
+        top5     = sorted(
+            fresh, key=lambda x: x.get('score', 50), reverse=True
+        )[:5]
         selected = random.choice(top5)
 
-        ctype    = self._content_type()
+        # Alternate: every 3rd upload is a Short
+        uploads  = self.history.uploads_today()
+        ctype    = 'short' if (uploads % 3 == 2) else 'long_video'
         language = self._language(selected)
 
         log.info(f"Selected: '{selected['topic']}'")
@@ -77,15 +88,13 @@ class TrendAggregator:
     def _dedup(self, items):
         seen, out = set(), []
         for item in items:
-            key = ' '.join(sorted(item['topic'].lower().split())[:6])
+            key = ' '.join(
+                sorted(item['topic'].lower().split())[:6]
+            )
             if key not in seen and len(item['topic']) > 8:
                 seen.add(key)
                 out.append(item)
         return out
-
-    def _content_type(self):
-        count = self.history.uploads_today()
-        return 'long_video' if count % 3 == 0 else 'short'
 
     def _language(self, item):
         src = item.get('source', '')
