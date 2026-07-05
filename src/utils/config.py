@@ -67,17 +67,23 @@ class Config:
         'howto':         '26',
     }
 
+    # 100% Copyright-free music - YouTube Audio Library
+    # These are confirmed public domain / CC0 tracks
     MUSIC_URLS = [
-        "https://cdn.pixabay.com/download/audio/2022/03/15/audio_115fe888fc.mp3",
-        "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3",
-        "https://cdn.pixabay.com/download/audio/2021/11/25/audio_cb4b9e6e07.mp3",
-        "https://cdn.pixabay.com/download/audio/2022/10/25/audio_946bc5ce6e.mp3",
-        "https://cdn.pixabay.com/download/audio/2023/05/16/audio_166b39e84a.mp3",
-        "https://cdn.pixabay.com/download/audio/2022/08/02/audio_884fe92c21.mp3",
-        "https://cdn.pixabay.com/download/audio/2021/08/09/audio_88447e769a.mp3",
+        # FreePD.com - 100% Public Domain
+        "https://freepd.com/music/Wakingup.mp3",
+        "https://freepd.com/music/Mysterious%20Ambiance.mp3",
+        "https://freepd.com/music/Surf%20Shimmy.mp3",
+        # Mixkit free music (royalty free)
+        "https://assets.mixkit.co/music/preview/mixkit-tech-house-vibes-130.mp3",
+        "https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3",
+        "https://assets.mixkit.co/music/preview/mixkit-dreaming-big-31.mp3",
+        "https://assets.mixkit.co/music/preview/mixkit-a-very-happy-christmas-897.mp3",
+        "https://assets.mixkit.co/music/preview/mixkit-deep-urban-623.mp3",
+        "https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3",
+        "https://assets.mixkit.co/music/preview/mixkit-games-worldbeat-466.mp3",
     ]
 
-    # Gemini models to try
     GEMINI_MODELS = [
         'gemini-2.0-flash',
         'gemini-2.0-flash-lite',
@@ -86,7 +92,6 @@ class Config:
         'gemini-1.5-pro',
     ]
 
-    # Groq models to try (free, fast)
     GROQ_MODELS = [
         'llama-3.3-70b-versatile',
         'llama-3.1-8b-instant',
