@@ -37,45 +37,45 @@ def main():
     Config.ensure_dirs()
 
     try:
-        # 1
+        # 1. Topic
         log.info("\n[ 1/8 ] Finding trending topic...")
         topic_data = TrendAggregator().get_best_topic()
         log.info(f"  Topic : {topic_data['topic']}")
         log.info(f"  Type  : {topic_data['content_type']}")
         log.info(f"  Lang  : {topic_data['language']}")
 
-        # 2
+        # 2. Script
         log.info("\n[ 2/8 ] Generating script...")
         script = ScriptGenerator().generate(topic_data)
-        log.info(f"  Title : {script.get('title', 'N/A')}")
+        log.info(f"  Title : {script.get('title', 'N/A')[:70]}")
         log.info(f"  Scenes: {len(script.get('scenes', []))}")
 
-        # 3
+        # 3. Voice
         log.info("\n[ 3/8 ] Generating voice narration...")
         audio_files = VoiceGenerator().generate(script)
         if not audio_files:
             raise RuntimeError("No audio files generated")
         log.info(f"  Audio files: {len(audio_files)}")
 
-        # 4
+        # 4. Images
         log.info("\n[ 4/8 ] Fetching images...")
         image_files = ImageFetcher().fetch_for_script(script)
         if not image_files:
             raise RuntimeError("No images fetched")
         log.info(f"  Images: {len(image_files)}")
 
-        # 5
+        # 5. Music
         log.info("\n[ 5/8 ] Downloading background music...")
         music_path = MusicManager().get_music()
         log.info(f"  Music : {'OK' if music_path else 'Skipped'}")
 
-        # 6
+        # 6. Thumbnail
         log.info("\n[ 6/8 ] Generating thumbnail...")
         bg        = image_files[0]['path'] if image_files else None
         thumbnail = ThumbnailGenerator().generate(script, bg)
         log.info("  Thumbnail: OK")
 
-        # 7
+        # 7. Video
         log.info("\n[ 7/8 ] Assembling video...")
         video_path = VideoAssembler().assemble(
             script, audio_files, image_files, music_path
@@ -84,10 +84,13 @@ def main():
             raise RuntimeError("Video assembly failed")
         mb = os.path.getsize(video_path) / 1_048_576
         log.info(f"  Video : {mb:.1f} MB")
+        log.info(f"  Type  : {topic_data['content_type']}")
 
-        # 8
+        # 8. Upload
         log.info("\n[ 8/8 ] Uploading to YouTube...")
-        video_id = YouTubeUploader().upload(video_path, script, thumbnail)
+        video_id = YouTubeUploader().upload(
+            video_path, script, thumbnail
+        )
 
         if video_id:
             HistoryManager().record(
@@ -106,7 +109,11 @@ def main():
             print(f"  Time : {elapsed:.0f}s")
             print("=" * 55)
         else:
-            raise RuntimeError("Upload failed - no video ID returned")
+            # Don't crash on upload limit - exit gracefully
+            log.warning(
+                "Upload failed. Pipeline will retry next run."
+            )
+            sys.exit(0)
 
     except Exception as exc:
         print(f"\nPIPELINE ERROR: {exc}")
